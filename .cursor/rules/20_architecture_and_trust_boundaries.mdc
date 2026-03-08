@@ -1,0 +1,36 @@
+---
+description: 責務境界と信頼境界。UI・Route Handler・サービス・永続化の分離、未信頼入力の境界。認証・認可・永続化に関わる変更に適用。
+globs: ["app/**/*", "src/**/*", "prisma/**/*", "tests/**/*", "e2e/**/*", "middleware.ts", "middleware/**/*", "config/**/*"]
+alwaysApply: false
+---
+# 適用条件
+- ARC-01: 本ルールは認証・認可・セッション・Cookie・入力検証・保護 API・ミドルウェア・永続化・セキュリティ設定に関わる変更に適用する。
+
+# レイヤ分離
+- ARC-02: `app/**` にはルーティング・ページ・レイアウト・Route Handler・Server Action の入口のみを置く。認証判断・DB アクセス・秘密値処理・パスワード処理の詳細を直接書いてはならない。
+- ARC-03: `src/features/auth/**` には認証 UI・フォーム状態・表示用メッセージ・プレゼンテーションロジックのみを置く。
+- ARC-04: `src/server/auth/**` には signup/login/logout/session/password/reset/verification などのユースケース単位サービスを置く。
+- ARC-05: `src/server/security/**` には認可ポリシー・CSRF・防御ヘッダー・レート制御・監査補助・トークン検証・正規化・共通ガードを置く。
+- ARC-06: `src/server/db/**` または `src/server/repositories/**` には問い合わせ・保存のみを置き、業務判断・認証判断を混在させてはならない。
+- ARC-07: `prisma/**` にはスキーマとマイグレーションのみを置き、認証ロジックや秘密値を埋め込んではならない。
+
+# Route Handler / Action の責務
+- ARC-08: Route Handler / Server Action は薄く保ち、入力の受領・厳格パース・サービス呼び出し・HTTP/画面応答への変換のみを行う。
+- ARC-09: Route Handler / Server Action で直接 DB を読み書きしてはならない。単純なヘルスチェック等の例外は security-sensitive でない箇所に限る。
+- ARC-10: Route Handler / Server Action でパスワードハッシュ化・セッション発行・認可判定の詳細を持ってはならない。
+
+# 認可と保護境界
+- ARC-11: middleware は粗い入口制御として使ってよいが、最終的な認可判定は各サーバー資源・サービスでも必ず実施する。
+- ARC-12: 所有者確認・ロール確認・状態確認・テナント境界は UI 分岐のみで済ませてはならない。
+- ARC-13: object-level authorization は各リソース取得・更新・削除の直前で評価する。
+
+# 信頼境界
+- ARC-14: 次をすべて未信頼入力として扱う。フォーム値・JSON 本文・query/path/header/cookie・アップロード・Webhook・キャッシュ値・キュー入力・外部 API 応答・ブラウザから戻る hidden 値・AI/LLM 出力。
+- ARC-15: 未信頼入力は境界を越えるたびに型・長さ・許可値・文脈妥当性を検証する。
+- ARC-16: サーバー専用モジュールをクライアントに import してはならない。機密ロジックや秘密値に触れるコードは server-only に保つ。
+
+# 実装規約
+- ARC-17: 返却値と DTO は UI 都合ではなくユースケース都合で定義する。
+- ARC-18: ポリシー・正規化・エラーマッピング・Cookie 生成・トークン生成は共通モジュールに集約し、各所で再実装してはならない。
+- ARC-19: `util` / `helper` のような曖昧な責務箱にセキュリティロジックを集めてはならない。目的が分かる名前を使う。
+- ARC-20: 動的コード実行・未検証のシェル実行・文字列結合によるクエリやコマンド構築を行ってはならない。

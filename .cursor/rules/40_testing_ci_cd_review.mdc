@@ -1,0 +1,43 @@
+---
+description: 認証変更の検証深度・CI ゲート・レビュー要件・ブランチ保護・サプライチェーン検査・リリース証跡。
+globs: ["app/**/*", "src/**/*", "tests/**/*", "e2e/**/*", ".github/**/*", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb", "prisma/**/*"]
+alwaysApply: false
+---
+# 基本原則
+- QA-01: セキュリティ仕様は「実装した」ではなく「コード・設定・テスト・レビューで再現可能に証明した」を完了条件とする。
+- QA-02: バグ修正、とくに security-sensitive な修正では、再発防止テストを先に追加することを優先する。
+- QA-03: 認証変更に「少なくとも1つ」のテストだけで済ませてはならない。変更種別に応じて必要な層を揃える。
+
+# 必須テスト深度
+- QA-04: ポリシー・正規化・Cookie 生成・期限計算・エラーマッピング・比較関数を変える場合は unit test を必須とする。
+- QA-05: Route Handler・service・repository・session・CSRF・レート制限・権限判定を変える場合は integration test を必須とする。
+- QA-06: signup/login/logout/reset/verification などユーザーフローや状態遷移を変える場合は e2e または同等の auth smoke test を必須とする。
+- QA-07: 破壊的変更や外部 IdP 導入のように自動化困難な場合でも、手動確認手順・期待結果・失敗時の復旧手順を記録する。
+
+# 認証系の最低検証項目
+- QA-08: 少なくとも次を継続的に検証する。account enumeration 耐性、session fixation 耐性、logout 後の再利用不可、session timeout、CSRF、防御ヘッダー、Cookie 属性、object-level authorization、open redirect 防止、リセット/検証トークンの再利用不可。
+- QA-09: login 成功時のセッション再発行、password reset 後のセッション失効方針、複数タブ/複数セッション方針、ブラウザバック時の再表示抑止を検証する。
+- QA-10: 失敗系は happy path と同じ粒度でテストし、存在有無・ロック状態・未検証状態の情報漏えいがないことを確認する。
+
+# CI ゲート
+- QA-11: 認証関連変更では少なくとも lint・typecheck・unit・integration を CI で必須とする。
+- QA-12: 認証フローに影響する変更では auth smoke e2e を merge 前に必須とする。やむを得ず除外する場合は理由と代替確認を残す。
+- QA-13: CI では依存関係監査・secret scanning・ロックファイル差分確認・必要に応じた SAST/設定検査を実施する。
+- QA-14: マイグレーションを含む変更では、スキーマ適用と最低限の起動/統合検証を自動化する。
+
+# レビューとブランチ保護
+- QA-15: 主要ブランチへの直接コミットを許可してはならない。変更はレビュー可能な経路で統合する。
+- QA-16: auth/security/CI/dependency/migration の変更は、少なくとも 1 人の non-author human review を必須とする。
+- QA-17: レビューでは、認証前後のセッション ID 切替・秘密情報漏えい・UI のみのアクセス制御・仕様外状態の扱い・ロールバック可否を確認する。
+- QA-18: CODEOWNERS 相当の仕組みが使える場合、auth/security/CI/migration の所有者レビューを有効にする。
+
+# CI/CD の権限とサプライチェーン
+- QA-19: CI のトークンと秘密値は最小権限とし、untrusted な入力から publish/release 権限に到達させてはならない。
+- QA-20: GitHub Actions 等の第三者 Action は、可能な限り commit SHA 等で固定し、mutable tag だけに依存しない。
+- QA-21: リリース成果物を配布する場合は、可能な限り署名または provenance を残し、少なくともハッシュと生成元を追跡可能にする。可能なら SBOM も生成する。
+- QA-22: 依存追加や大幅更新では、差分レビューに lockfile・権限・ビルド再現性への影響を含める。
+
+# 脆弱性対応と監査性
+- QA-23: SECURITY.md または同等の CVD 方針を維持し、報告窓口と応答期待を明示する。
+- QA-24: セキュリティ修正には、脅威・修正範囲・テスト・残留リスク・必要な運用追従をレビュー記録に残す。
+- QA-25: エージェントは、テスト未実施や証拠不足の制御を「実装済み」と断定してはならない。

@@ -1,0 +1,66 @@
+---
+description: サインアップ・ログイン・ログアウト・パスワード・セッション・メール検証・リセット・MFA/OAuth の認証ルール。
+globs: ["app/**/*", "src/**/*", "tests/**/*", "e2e/**/*", "middleware.ts", "middleware/**/*"]
+alwaysApply: false
+---
+# 適用条件
+- AUTH-01: 本ルールは signup/login/logout/password reset/email verification/session/MFA/passkey/OAuth/OIDC の実装または変更に適用する。
+
+# アカウント状態
+- AUTH-02: pending-verification・active・locked・suspended・disabled・deleted などの状態と遷移条件を明示し、内部処理と外部応答を分ける。
+- AUTH-03: 外部応答から、ユーザー不存在・未検証・ロック・凍結・無効化の差が推測しにくいようにする。
+- AUTH-04: 既定で自動管理者化・暗黙の権限付与・特権ロールの自動昇格を行ってはならない。
+
+# サインアップ
+- AUTH-05: サインアップでは、重複アカウント・未検証再登録・停止済みアカウントの扱いを仕様化し、実装とテストで固定する。
+- AUTH-06: メール所有権が重要なアプリでは、検証完了前に高リスク機能を許可してはならない。永続セッション付与の可否も明示する。
+- AUTH-07: ユーザー名・識別子に予約語やシステム内部用値を使わせてはならない。
+- AUTH-08: メールアドレスやログイン ID の canonicalization は一元化し、重複判定とログイン照合で不一致を起こしてはならない。
+
+# パスワードポリシー
+- AUTH-09: パスワードのみで認証する場合、最小長は 15 文字以上を基準とする。MFA 補助要素としてのみ使う場合でも 8 文字未満は許可しない。
+- AUTH-10: 最大長は少なくとも 64 文字を許可し、黙って切り捨ててはならない。
+- AUTH-11: 文字種混在の強制ルールは課さず、印字可能 ASCII とスペースを許可する。
+- AUTH-12: 定期的なパスワード変更を強制してはならない。漏えい・侵害・回復イベントなどの根拠がある場合のみ強制する。
+- AUTH-13: よく使われる語・漏えい済み候補・辞書語・サービス名やメール由来の脆弱候補は blocklist で拒否する。
+- AUTH-14: paste・password manager・show/hide password を妨げてはならない。
+
+# パスワード保存
+- AUTH-15: パスワードの平文保存・可逆暗号化を禁止する。
+- AUTH-16: 第一候補は Argon2id、代替は scrypt、レガシー互換が必要な場合のみ bcrypt とする。
+- AUTH-17: ハッシュ方式とコストは設定化し、再ハッシュ移行を可能にする。
+
+# ログインと自動攻撃対策
+- AUTH-18: ログイン失敗時は、ユーザー不存在・パスワード不一致・状態異常を区別しない汎用エラーに統一する。
+- AUTH-19: ログイン成功時は必ず新しいセッション ID を発行し、認証前セッションを使い回してはならない。
+- AUTH-20: レート制限はアカウント識別子単体ではなく、IP・サブネット・デバイス信号等も組み合わせて設計し、攻撃者によるロックアウト悪用を防ぐ。
+- AUTH-21: 恒久的ロックよりも、段階的遅延・一時的スロットリング・追加検証・監査強化を優先する。
+- AUTH-22: 高リスク用途では MFA / passkeys を追加しやすい抽象化を維持する。
+
+# セッション運用
+- AUTH-23: 既定のブラウザ認証は、サーバー側で失効可能な opaque session を優先する。自己完結型 JWT をブラウザセッションに使う場合は、失効戦略とリスクを明示する。
+- AUTH-24: セッション識別子は高エントロピーのランダム値とし、URL に載せず、識別子自体に PII・権限・状態を埋め込まない。
+- AUTH-25: idle timeout・absolute timeout・必要に応じた renewal timeout を定義し、期限管理はサーバー側で強制する。
+- AUTH-26: 権限変更・パスワード変更・MFA 設定変更・アカウント回復・疑わしいイベント後はセッション ID を再生成し、必要に応じて他セッションを失効させる。
+- AUTH-27: ログアウト時はサーバー側セッションを必ず失効させ、Cookie も削除または失効させる。
+
+# Cookie 設定
+- AUTH-28: 認証 Cookie は Secure・HttpOnly を必須とし、SameSite=Lax または Strict を既定とする。
+- AUTH-29: Domain と Path は必要最小限とし、可能な場合は __Host- プレフィックスを用いる。
+- AUTH-30: ブラウザ向け bearer token を localStorage や URL に保存してはならない。
+
+# メール検証・リセット・回復
+- AUTH-31: メール検証トークン・パスワードリセットトークン・magic link は、単回使用・短寿命・用途限定・高エントロピー・サーバー側失効可能でなければならない。
+- AUTH-32: 上記トークンは、再発行時に旧トークンを無効化できる設計を優先する。平文保存を避け、使用時にハッシュ照合または HMAC 照合できる設計を優先する。
+- AUTH-33: 検証要求・リセット要求の応答は、アカウント存在有無を漏らさない汎用応答とする。
+- AUTH-34: 検証要求・リセット要求のエンドポイントはレート制限と監査対象に含める。
+- AUTH-35: リセットや検証のリンク遷移先は allowlist された origin/path のみを許可し、open redirect を作ってはならない。
+- AUTH-36: パスワード変更または回復完了後は、既存セッションの失効方針を明示し、既定では少なくとも高リスクセッションを失効させる。
+
+# 再認証・MFA・外部 IdP
+- AUTH-37: メール変更・パスワード変更・MFA 設定変更・退会・支払・権限変更などの高リスク操作では再認証または step-up を要求する。
+- AUTH-38: OAuth/OIDC を使う場合は PKCE・state・nonce・issuer/audience/exp 検証・完全一致の redirect URI・最小スコープを必須とする。
+- AUTH-39: 外部 IdP 由来のクレームを、そのままロールや特権に昇格させてはならない。ローカル側の許可ポリシーで再評価する。
+
+# 監査対象イベント
+- AUTH-40: 少なくとも次を監査対象とする。signup requested/success、verification requested/success/failure、login success/failure、throttled、lock/suspend、logout success、session created/renewed/destroyed/expired、password reset requested/success/failure、suspicious auth activity。

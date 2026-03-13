@@ -1,3 +1,4 @@
+# .github/workflows/dependency-review.yml
 name: Dependency Review
 
 on:
@@ -7,38 +8,67 @@ on:
       - main
 
 permissions:
-  # リポジトリ内容の読み取り権限のみ付与する
-  # Dependency Review Action は最小権限で動かす
+  # 最小権限で動かす
+  # Dependency Review Action の実行には、まず contents: read だけで十分
   contents: read
 
 jobs:
   dependency-review:
     name: Dependency Review
+    # GitHub 公式例に合わせて GitHub-hosted runner を使う
     runs-on: ubuntu-latest
 
     steps:
-      # リポジトリの中身を Actions 実行環境にチェックアウトする
-      - name: リポジトリを取得
+      # リポジトリ内容を runner に取得する
+      - name: リポジトリをチェックアウト
         uses: actions/checkout@v5
 
-      # PR に含まれる依存関係の変更をレビューする
-      - name: 依存関係をレビュー
+      # PR に含まれる依存関係の差分をレビューする
+      - name: 依存関係レビューを実行
         uses: actions/dependency-review-action@v4
         with:
-          # どの重大度以上を失敗扱いにするか
-          # まずは high 以上から始めると運用しやすい
+          # どの重大度以上で失敗にするか
+          # 3人チームの初期運用なら、まずは high 以上で止めるのが現実的
+          # （厳しくしすぎると運用が詰まりやすいため）
           fail-on-severity: high
 
-          # ライセンスチェックは初期導入では無効化する
-          # 必要になったら別途ポリシーを決めて有効化する
-          license-check: false
+          # 本番影響のある runtime 依存だけを対象にする
+          # development 依存まで最初から厳格にするとノイズが増えやすい
+          fail-on-scopes: runtime
 
-          # 脆弱性チェックは有効にする
+          # PR へ自動コメントは付けない
+          # 余計な権限（pull-requests: write）を増やさず、最小権限を維持する
+          comment-summary-in-pr: never
+
+          # ライセンスチェックは有効のまま
+          # ただし、組織として許可ライセンス方針が未確定なら
+          # allow-licenses / deny-licenses は最初は入れない
+          license-check: true
+
+          # 脆弱性チェックは有効
           vulnerability-check: true
 
-          # 本番実行時に影響しやすい依存関係を主対象にする
-          dependency-type: runtime
+          # warn-only を true にすると失敗しなくなるので、ゲート用途では使わない
+          warn-only: false
 
-          # PR の比較元と比較先を指定する
-          base-ref: ${{ github.event.pull_request.base.sha }}
-          head-ref: ${{ github.event.pull_request.head.sha }}
+# ------------------------------------------------------------
+# 将来、運用が固まったら追加を検討する項目
+# ------------------------------------------------------------
+#
+# 1) ライセンスの許可リスト方式にしたい場合
+#    ※ allow-licenses と deny-licenses は同時に使えない
+#
+# with:
+#   allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
+#
+# 2) 特定 GHSA を例外扱いしたい場合
+#
+# with:
+#   allow-ghsas: GHSA-xxxx-xxxx-xxxx
+#
+# 3) 別 workflow で dependency submission を走らせていて、
+#    タイミング競合が起きる場合
+#
+# with:
+#   retry-on-snapshot-warnings: true
+#   retry-on-snapshot-warnings-timeout: 180

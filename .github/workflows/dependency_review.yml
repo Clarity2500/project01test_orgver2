@@ -29,18 +29,16 @@ jobs:
           # まずは high 以上から始めると運用しやすい
           fail-on-severity: high
 
-          # 本番実行時に影響しやすい依存関係だけを主に見る
-          # runtime = 実行時依存
-          # unknown = GitHub 側で分類できなかった依存
-          allow-dependencies-licenses: false
-          vulnerability-check: true
+          # ライセンスチェックは初期導入では無効化する
+          # 必要になったら別途ポリシーを決めて有効化する
           license-check: false
 
-          # どの種類の依存関係を対象にするか
-          # runtime と unknown を対象にする
+          # 脆弱性チェックは有効にする
+          vulnerability-check: true
+
+          # 本番実行時に影響しやすい依存関係を主対象にする
           dependency-type: runtime
 
-          # GitHub Advisory Database にある脆弱性を確認する
-          # true が基本
+          # PR の比較元と比較先を指定する
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}

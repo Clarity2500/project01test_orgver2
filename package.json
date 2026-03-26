@@ -1,0 +1,21 @@
+{
+  "name": "feedback-inbox-lite",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "start:prod": "node dist/server.js",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "eslint": "^9.0.0",
+    "vitest": "^3.0.0"
+  }
+}

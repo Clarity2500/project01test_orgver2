@@ -1,0 +1,85 @@
+# CI workflow used as a pull request quality gate.
+name: CI (PR Gate)
+
+on:
+  # Run CI mainly for PRs targeting main.
+  pull_request:
+    # Limit to PRs merged into main branch.
+    branches:
+      - main
+    # Trigger on key PR lifecycle events.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    # Skip docs-only updates to reduce unnecessary runs.
+    paths-ignore:
+      - docs/**
+      - "**/*.md"
+  # Allow manual execution from GitHub Actions UI.
+  workflow_dispatch:
+
+permissions:
+  # Least privilege: only read repository contents.
+  contents: read
+
+concurrency:
+  # Keep only the latest run for the same PR/ref.
+  group: ci-pr-${{ github.event.pull_request.number || github.ref }}
+  # Cancel older in-progress runs when a new commit arrives.
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    # One job that verifies lint, test, and build together.
+    name: Lint / Test / Build
+    # Skip draft PRs until they are ready for review.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # Pin the runner image for more stable reproducibility.
+    runs-on: ubuntu-24.04
+    # Prevent hanging jobs from running indefinitely.
+    timeout-minutes: 15
+
+    steps:
+      # Checkout application source code.
+      - name: Checkout source code
+        uses: actions/checkout@v5
+        with:
+          # Shallow clone is enough for CI checks here.
+          fetch-depth: 1
+
+      # Enforce lockfile-first installs for reproducible dependency resolution.
+      - name: Verify lockfile exists (reproducibility)
+        shell: bash
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "::error::package-lock.json is required. Run 'npm install' once and commit the lockfile."
+            exit 1
+          fi
+
+      # Install the required Node.js runtime and enable npm cache.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          # Pin Node version for deterministic CI behavior.
+          node-version: "22.14.0"
+          # Cache npm packages keyed by lockfile.
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # Install dependencies strictly from package-lock.json.
+      - name: Install dependencies from lockfile
+        run: npm ci --no-audit --no-fund
+
+      # Static checks: formatting/lint rules.
+      - name: Run lint
+        run: npm run lint --if-present
+
+      # Unit/integration tests.
+      - name: Run tests
+        run: npm run test --if-present
+
+      # Production build validation.
+      - name: Run build
+        run: npm run build --if-present
